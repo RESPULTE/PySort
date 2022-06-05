@@ -1,10 +1,11 @@
+from collections import deque
 from typing import List
 import random
 import pytest
 from pysort.lib.quadratic_sort import bubble_sort, insertion_sort, selection_sort
 from pysort.lib.logarithmic_sort import merge_sort
 
-DATASET_SIZE = 10_000
+DATASET_SIZE = 5000
 
 
 @pytest.fixture(scope="session")
@@ -19,5 +20,5 @@ def sorted_arr(arr) -> List[int]:
 
 @pytest.mark.parametrize("sort_algo", [bubble_sort, insertion_sort, selection_sort, merge_sort])
 def test_sort(sort_algo, arr, sorted_arr):
-    sort_algo(arr)
+    deque(sort_algo(arr), 0)
     assert arr == sorted_arr

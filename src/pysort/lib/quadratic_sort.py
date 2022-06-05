@@ -36,12 +36,13 @@ def bubble_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> It
     for i in range(start, end + 1):
 
         # for every element up-till the last 'i' element
-        for j in range(end - i - 1):
+        for j in range(end - i):
 
             # compare the element's value with its predecessor's value
             k = j + 1
             if arr[j] > arr[k]:
                 arr[j], arr[k] = arr[k], arr[j]
+                yield
 
 
 def insertion_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Iterable[CT]:
@@ -78,6 +79,7 @@ def insertion_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
         arr[index + 1 : i + 1] = arr[index:i]
         # shift the current element into the right-place
         arr[index] = elem
+        yield
 
     return arr
 
@@ -102,7 +104,7 @@ def selection_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
 
         # looping through to find a smaller value
         min_elem_index = i
-        for j in range(i, end):
+        for j in range(i, end + 1):
             _elem = arr[j]
 
             if _elem < elem:
@@ -112,5 +114,5 @@ def selection_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
         # swap if a new minimum value has been found
         if min_elem_index != i:
             arr[i], arr[min_elem_index] = arr[min_elem_index], arr[i]
-
+            yield
     return arr

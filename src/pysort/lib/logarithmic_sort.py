@@ -31,8 +31,8 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
     # recursively splitting the array into left & right halves
     split_index = arr_size // 2
     left_arr, right_arr = arr[:split_index], arr[split_index:]
-    merge_sort(left_arr)
-    merge_sort(right_arr)
+    yield from merge_sort(left_arr)
+    yield from merge_sort(right_arr)
 
     # copying the elements of splitted-array back into the original array in order
     l = r = k = 0
@@ -46,7 +46,7 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
         else:
             arr[k] = right_elem
             r += 1
-
+        yield
         k += 1
 
     # exahust the any remaining elements that maybe in the left or right half of the array
@@ -54,8 +54,6 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
         arr[k : k + (left_size - l)] = left_arr[l:]
     elif r < right_size:
         arr[k : k + (right_size - r)] = right_arr[r:]
-
-    return arr
 
 
 def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[CT]:
