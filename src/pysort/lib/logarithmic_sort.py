@@ -2,7 +2,6 @@ from collections import deque, namedtuple
 from pysort.lib._type_hint import CT
 from pysort.lib.quadratic_sort import insertion_sort
 from typing import List, MutableSequence, Tuple
-from bisect import bisect_left
 from operator import lt, gt
 
 
@@ -24,39 +23,6 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
 
     """
 
-    arr_size = len(arr)
-    if arr_size == 1:
-        return
-
-    # recursively splitting the array into left & right halves
-    split_index = arr_size // 2
-    left_arr, right_arr = arr[:split_index], arr[split_index:]
-    yield from merge_sort(left_arr)
-    yield from merge_sort(right_arr)
-
-    # copying the elements of splitted-array back into the original array in order
-    l = r = k = 0
-    left_size, right_size = len(left_arr), len(right_arr)
-    while l < left_size and r < right_size:
-        right_elem = right_arr[r]
-        left_elem = left_arr[l]
-        if left_elem < right_elem:
-            arr[k] = left_elem
-            l += 1
-        else:
-            arr[k] = right_elem
-            r += 1
-        yield
-        k += 1
-
-    # exahust the any remaining elements that maybe in the left or right half of the array
-    if l < left_size:
-        arr[k : k + (left_size - l)] = left_arr[l:]
-    elif r < right_size:
-        arr[k : k + (right_size - r)] = right_arr[r:]
-
-
-def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> MutableSequence[CT]:
     def recursive_merge_sort(start: int, end: int) -> None:
         if end == start:
             return
@@ -67,10 +33,20 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
         yield from recursive_merge_sort(mid + 1, end)
 
         # choosing the left/right array to become the temporary array
-        left_size, right_size = mid - start + 1, end - mid
+        # +1 for the left array's size to avoid it being a 0 when the array is the size of 2, i.e (0, 0, 1) -> (start, mid, end)
+        left_size = mid - start + 1
+        right_size = end - mid
+
+        # +1 for mid beacuse everything brekas without doing this
+        mid += 1
         if left_size > right_size:
-            temp_arr = arr[mid + 1 : end + 1]
-            arr[start + right_size : mid + right_size + 1] = arr[start : mid + 1]
+            # i.e (0, 1, 2) -> (start, mid, end)
+            # since left size is bigger left arr must be [0, 1] & right arr must be only 2
+            # but this is not possible with index slicing unless the end & mid is incremented by 1
+            # so the slicing notations ends up being arr[0:2], arr[2:3]
+            # ? there's most definitely a better way to go about this, but i'm too tired to care
+            temp_arr = arr[mid : end + 1]
+            arr[start + right_size : mid + right_size] = arr[start:mid]
 
             temp_size = right_size
 
@@ -78,14 +54,13 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
             end_index = left_size + i
 
         else:
-            temp_arr = arr[start : mid + 1]
+            temp_arr = arr[start:mid]
             temp_size = left_size
 
-            i = mid + 1
+            i = mid
             end_index = right_size + i
 
         # copying the elements of splitted-array back into the original array in order
-
         t, k = 0, start
         while t < temp_size and i < end_index:
             temp_elem = temp_arr[t]
@@ -93,26 +68,23 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
 
             if temp_elem < orig_elem:
                 arr[k] = temp_elem
+                yield temp_elem
                 t += 1
             else:
                 arr[k] = orig_elem
+                yield orig_elem
                 i += 1
-            yield
             k += 1
 
-        # can techinically make this more performant by writing the data in bulk with list-slicing
-        # but it looks better on screen when done like this
         while i < end_index:
             arr[k] = arr[i]
             k += 1
             i += 1
-            yield
 
         while t < temp_size:
             arr[k] = temp_arr[t]
             k += 1
             t += 1
-            yield
 
     yield from recursive_merge_sort(0, len(arr) - 1)
 
@@ -165,6 +137,3 @@ if __name__ == "__main__":
 
     # print(timeit.timeit("tim_sort(list(range(0, 10_000_000)))", "from __main__ import tim_sort", number=1))
     # print(timeit.timeit("sorted(list(range(10_000_000)))", number=1))
-    a = [1, 4, 3, 12, 3, 4, 23, 4, 3434]
-    deque(merge_sort(a), 0)
-    print(a)

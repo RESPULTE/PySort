@@ -1,8 +1,10 @@
 from collections import deque
 from itertools import zip_longest
+import math
 from pysort.lib import *
 
-from typing import Callable, List, Tuple
+from typing import Callable, List, Optional, Tuple
+import itertools
 import pygame
 import random
 
@@ -14,6 +16,10 @@ pygame.font.init()
 class Settings:
     FPS = 60
     PADDING = 5
+
+    SMALL_DATASET = 10
+    MEDIUM_DATASET = 100
+    LARGE_DATASET = 1000
 
     SCREEN_WIDTH = 1000
     SCREEN_HEIGHT = 700
@@ -30,8 +36,16 @@ class Settings:
     BUTTON_CLICKED_COLOR = (0, 0, 255)
 
     SORTING_DISPLAYER_RECT = pygame.Rect(25, 100, 600, 500)
+    SORTING_ALGORITHM_GUIDE_TEXT_1 = "PRESS ENTER TO START"
+    SORTING_ALGORITHM_GUIDE_TEXT_2 = "SELECT DATASET SIZE"
+    SORTING_ALGORITHM_GUIDE_TEXT_3 = "SELECT SORTING ALGORITHM"
+    SORTING_ALGORITHM_GUIDE_TEXT_4 = "SORTING DONE"
+
+    SORTING_ALGORITHM_GUIDE_TEXT_BACKGROUND_COLOR = (50, 37, 89)
+
     SORTING_DISPLAYER_COLUMN_COLOR_INITIAL = (13, 53, 156)
     SORTING_DISPLAYER_COLUMN_COLOR_END = (130, 200, 200)
+    SORTING_ALGORITHM_COLUMN_COLOR_HIGHLIGHT = (250, 5, 0)
 
     TITLE_RECT = pygame.Rect(100, 20, 800, 65)
     TITLE_FONT_COLOR = (0, 0, 100)
@@ -162,8 +176,10 @@ class Title(pygame.Surface):
 
 
 class SortingDisplayer(pygame.Surface):
-    def __init__(self, container: pygame.Surface) -> None:
+    def __init__(self, container: pygame.Surface, n: int = 100) -> None:
         self.x, self.y, self.w, self.h = Settings.SORTING_DISPLAYER_RECT
+        self.w *= 5
+        self.h *= 5
         super().__init__((self.w, self.h))
 
         self.dataset = []
@@ -171,14 +187,21 @@ class SortingDisplayer(pygame.Surface):
         self.sort_algo: Callable[[MutableSequence[CT]], Iterable] = None
         self.container = container
 
-        self.generate_data(100)
-        self.render()
+        self.column_width = 0
+        self.is_sorted = False
+
+        self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_2)
 
     def start(self) -> None:
+        if self.sort_algo is None:
+            self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_3)
+            return
+
         sorter = self.sort_algo(self.dataset)
         clock = pygame.time.Clock()
 
         run = True
+        pause = False
         while run:
             clock.tick(Settings.FPS)
 
@@ -189,45 +212,85 @@ class SortingDisplayer(pygame.Surface):
                     if event.key == pygame.K_RETURN:
                         exhaust(sorter)
 
-            try:
-                next(sorter)
-                self.render()
-                pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
+                    elif event.key == pygame.K_SPACE:
+                        pause = not pause
 
-            except StopIteration:
-                self.render()
-                pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
-                break
+            if not pause:
+                try:
+                    if self.dataset_size == Settings.LARGE_DATASET:
+                        data_to_highlight = next(itertools.islice(sorter, 10, 11))
+                    else:
+                        data_to_highlight = next(sorter)
+                    self.render(data_to_highlight)
+                    pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
 
-    def generate_data(self, n: int) -> List[int]:
+                except StopIteration:
+                    self.render()
+                    self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_4)
+                    pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
+                    self.is_sorted = True
+                    break
+
+    def render_dataset(self, n: int) -> None:
         self.dataset_size = n
         self.dataset.clear()
-        self.dataset.extend([random.randint(1, n) for _ in range(1, n + 1)])
+        self.dataset.extend(list(range(1, n + 1)))
+        random.shuffle(self.dataset)
 
-    def render(self) -> None:
+        self.column_width = self.w / self.dataset_size
+
+        self.render()
+
+    def render(self, data_to_highlight: Optional[int] = None) -> None:
         self.fill((0, 0, 0))
         ir, ig, ib = Settings.SORTING_DISPLAYER_COLUMN_COLOR_INITIAL
         er, eg, eb = Settings.SORTING_DISPLAYER_COLUMN_COLOR_END
         dr, dg, db = er - ir, eg - ig, eb - ib
 
         x = 0
-        w = self.w / self.dataset_size
         for data in self.dataset:
             ratio = data / self.dataset_size
 
-            size = ratio * self.h
-            y = self.h - size
-            h = size
+            h = ratio * self.h
+            y = self.h - h
 
             color = (int(ratio * dr) + ir, int(ratio * dg) + ig, int(ratio * db) + ib)
+            pygame.draw.rect(self, color, (x, y, self.column_width, h))
+            x += self.column_width
 
-            pygame.draw.rect(self, color, (x, y, w, h))
-            x += w
+        if data_to_highlight != None:
+            ratio = data_to_highlight / self.dataset_size
 
-        self.container.blit(self, (self.x, self.y))
+            h = ratio * self.h
+            y = self.h - h
+
+            x = self.dataset.index(data_to_highlight) * self.column_width
+            pygame.draw.rect(self, Settings.SORTING_ALGORITHM_COLUMN_COLOR_HIGHLIGHT, (x, y, self.column_width, h))
+
+        scaled_displayer = pygame.transform.scale(self, Settings.SORTING_DISPLAYER_RECT.size)
+        self.container.blit(scaled_displayer, (self.x, self.y))
+
+    def render_default(self, text: str) -> None:
+        scaled_displayer = pygame.transform.scale(self, Settings.SORTING_DISPLAYER_RECT.size)
+        font_surf = Settings.FONT.render(text, True, Settings.FONT_DEFAULT_COLOR)
+        font_surf_rect = font_surf.get_rect(center=scaled_displayer.get_rect().center)
+        pygame.draw.rect(
+            scaled_displayer, Settings.SORTING_ALGORITHM_GUIDE_TEXT_BACKGROUND_COLOR, font_surf_rect.inflate(25, 25)
+        )
+        scaled_displayer.blit(font_surf, font_surf_rect.topleft)
+        pygame.draw.rect(scaled_displayer, Settings.FONT_DEFAULT_COLOR, font_surf_rect.inflate(25, 25), 3)
+
+        self.container.blit(scaled_displayer, (self.x, self.y))
+
+    def reset_data(self) -> None:
+        random.shuffle(self.dataset)
+        self.render()
 
     def set(self, sort_algo: Callable) -> None:
         self.sort_algo = sort_algo
+        if self.dataset_size != 0:
+            self.render()
+            self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_1)
 
 
 def exhaust(iterable: Iterable) -> None:
@@ -240,18 +303,9 @@ def main():
     screen = pygame.display.set_mode((Settings.SCREEN_WIDTH, Settings.SCREEN_HEIGHT))
     screen.fill(Settings.BACKGROUND_COLOR)
 
-    dataset_size = {
-        10: "teeny-weeny",
-        100: "meh",
-        1_000: "average",
-        10_000: "respectable",
-        100_000: "humungous",
-        1_000_000: "oh lawd",
-    }
     sorting_algorithms = [bubble_sort, insertion_sort, selection_sort, merge_sort]
     for algo in sorting_algorithms:
         algo.__name__ = algo.__name__.replace("_", " ").upper()
-
     sorting_algorithm_names = [fn.__name__ for fn in sorting_algorithms]
 
     menu = DropDownMenu(text_list=sorting_algorithm_names, func_list=sorting_algorithms, container=screen)
@@ -277,6 +331,17 @@ def main():
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
                     start_sort = True
+                    if displayer.is_sorted:
+                        displayer.reset_data()
+
+                elif event.key == pygame.K_1:
+                    displayer.render_dataset(Settings.SMALL_DATASET)
+
+                elif event.key == pygame.K_2:
+                    displayer.render_dataset(Settings.MEDIUM_DATASET)
+
+                elif event.key == pygame.K_3:
+                    displayer.render_dataset(Settings.LARGE_DATASET)
 
         if not start_sort:
             sort_algo = menu.query(*mouse_pos, clicked=clicked)

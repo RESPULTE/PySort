@@ -1,6 +1,5 @@
 from pysort.lib._type_hint import CT
 from typing import Any, Iterable, MutableSequence
-from bisect import bisect_left
 
 
 class OperationLoggingList(list):
@@ -42,7 +41,7 @@ def bubble_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> It
             k = j + 1
             if arr[j] > arr[k]:
                 arr[j], arr[k] = arr[k], arr[j]
-                yield
+                yield arr[k]
 
 
 def insertion_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Iterable[CT]:
@@ -67,21 +66,11 @@ def insertion_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
     if end is None:
         end = len(arr) - 1
 
-    for i in range(start, end + 1):
-
-        # cache the current element
-        elem = arr[i]
-
-        # the shifting process
-        # note: this will initially overwrite the current element in the array
-        #       thus the cache is needed before this
-        index = bisect_left(arr, elem, start, i)
-        arr[index + 1 : i + 1] = arr[index:i]
-        # shift the current element into the right-place
-        arr[index] = elem
-        yield
-
-    return arr
+    for i in range(start + 1, end + 1):
+        while i > 0 and arr[i - 1] > arr[i]:
+            arr[i - 1], arr[i] = arr[i], arr[i - 1]
+            yield arr[i]
+            i -= 1
 
 
 def selection_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> MutableSequence[CT]:
@@ -110,9 +99,10 @@ def selection_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
             if _elem < elem:
                 min_elem_index = j
                 elem = _elem
+                yield _elem
 
         # swap if a new minimum value has been found
         if min_elem_index != i:
             arr[i], arr[min_elem_index] = arr[min_elem_index], arr[i]
-            yield
+
     return arr
