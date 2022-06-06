@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import deque, namedtuple
 from pysort.lib._type_hint import CT
 from pysort.lib.quadratic_sort import insertion_sort
 from typing import List, MutableSequence, Tuple
@@ -56,6 +56,67 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
         arr[k : k + (right_size - r)] = right_arr[r:]
 
 
+def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> MutableSequence[CT]:
+    def recursive_merge_sort(start: int, end: int) -> None:
+        if end == start:
+            return
+
+        # recursively splitting the array into left & right halves
+        mid = start + (end - start) // 2
+        yield from recursive_merge_sort(start, mid)
+        yield from recursive_merge_sort(mid + 1, end)
+
+        # choosing the left/right array to become the temporary array
+        left_size, right_size = mid - start + 1, end - mid
+        if left_size > right_size:
+            temp_arr = arr[mid + 1 : end + 1]
+            arr[start + right_size : mid + right_size + 1] = arr[start : mid + 1]
+
+            temp_size = right_size
+
+            i = start + right_size
+            end_index = left_size + i
+
+        else:
+            temp_arr = arr[start : mid + 1]
+            temp_size = left_size
+
+            i = mid + 1
+            end_index = right_size + i
+
+        # copying the elements of splitted-array back into the original array in order
+
+        t, k = 0, start
+        while t < temp_size and i < end_index:
+            temp_elem = temp_arr[t]
+            orig_elem = arr[i]
+
+            if temp_elem < orig_elem:
+                arr[k] = temp_elem
+                t += 1
+            else:
+                arr[k] = orig_elem
+                i += 1
+            yield
+            k += 1
+
+        # can techinically make this more performant by writing the data in bulk with list-slicing
+        # but it looks better on screen when done like this
+        while i < end_index:
+            arr[k] = arr[i]
+            k += 1
+            i += 1
+            yield
+
+        while t < temp_size:
+            arr[k] = temp_arr[t]
+            k += 1
+            t += 1
+            yield
+
+    yield from recursive_merge_sort(0, len(arr) - 1)
+
+
 def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[CT]:
     remainder = 0
     arr_size = n = len(arr)
@@ -91,6 +152,9 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[
     if len(run_chunks) == 1:
         return
 
+    for rc in run_chunks:
+        ...
+
 
 def radix_sort(arr: MutableSequence[CT]) -> MutableSequence[CT]:
     ...
@@ -101,4 +165,6 @@ if __name__ == "__main__":
 
     # print(timeit.timeit("tim_sort(list(range(0, 10_000_000)))", "from __main__ import tim_sort", number=1))
     # print(timeit.timeit("sorted(list(range(10_000_000)))", number=1))
-    tim_sort(list(range(100_000)))
+    a = [1, 4, 3, 12, 3, 4, 23, 4, 3434]
+    deque(merge_sort(a), 0)
+    print(a)
