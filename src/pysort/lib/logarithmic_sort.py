@@ -1,7 +1,7 @@
 from collections import deque, namedtuple
+from heapq import heapify, heappop, heappush
 from pysort.lib._type_hint import CT
-from pysort.lib.quadratic_sort import insertion_sort
-from typing import List, MutableSequence, Tuple
+from typing import Deque, List, MutableSequence, Tuple
 from operator import lt, gt
 
 
@@ -12,14 +12,11 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
     [Process]
     1. Get the length of the array and get the midpoint of it
 
-    2. recursively split the array at the midpoint into left & right half,
-       and continue until the array is of size 1
+    2. recursively split the array at the midpoint into left & right half, and continue until the array is of size 1
 
-    3. get the minimum element of both array & write it to the original array,
-       continue until one of the halves has been exhausted
+    3. get the minimum element of both array & write it to the original array, continue until one of the halves has been exhausted
 
-    4. just repeat the same process for the other half that
-       hasn't had it element written back into the original array yet
+    4. just repeat the same process for the other half that hasn't had it element written back into the original array yet
 
     """
 
@@ -103,37 +100,96 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[
     prev_index = 0
     end_index = arr_size - 1
     RunChunk = namedtuple("RunChunk", ["start_index", "end_index"])
-    run_chunks: List[RunChunk] = []
+    run_chunks: Deque[RunChunk] = deque([])
+
     while index < end_index:
         comparator = lt if arr[index] < arr[index + 1] else gt
 
         index += 1
         run_size = 2
         while index < end_index and comparator(arr[index], arr[index + 1]):
+            yield arr[index]
             index += 1
             run_size += 1
 
-        if run_size < min_runsize:
+        if comparator is gt:
+            end_section_index = prev_index + -(-(index - prev_index) // 2)
+
+            for i in range(prev_index, end_section_index):
+                arr[i], arr[end_section_index] = arr[end_section_index], arr[i]
+                yield arr[end_section_index]
+                end_section_index -= 1
+
+        if run_size < min_runsize or 0 < end_index - index < min_runsize:
             index = min(index + min_runsize - run_size, end_index)
-            insertion_sort(arr, prev_index, index)
+
+            for i in range(prev_index + 1, index + 1):
+                while i > prev_index and arr[i - 1] > arr[i]:
+                    arr[i - 1], arr[i] = arr[i], arr[i - 1]
+                    yield arr[i]
+                    i -= 1
 
         run_chunks.append(RunChunk(prev_index, index))
-        prev_index = index
         index += 1
+        prev_index = index
 
     if len(run_chunks) == 1:
         return
 
-    for rc in run_chunks:
-        ...
+    rc_1 = run_chunks.popleft()
+
+    while run_chunks:
+
+        rc_2 = run_chunks.popleft()
+        start, mid, end = rc_1.start_index, rc_1.end_index, rc_2.end_index
+
+        left_size = mid - start + 1
+        right_size = end - mid
+        mid += 1
+        if left_size > right_size:
+            temp_arr = arr[mid : end + 1]
+            arr[start + right_size : mid + right_size] = arr[start:mid]
+
+            temp_size = right_size
+
+            i = start + right_size
+            end_index = left_size + i
+
+        else:
+            temp_arr = arr[start:mid]
+            temp_size = left_size
+
+            i = mid
+            end_index = right_size + i
+
+        # copying the elements of splitted-array back into the original array in order
+        t, k = 0, start
+        while t < temp_size and i < end_index:
+            temp_elem = temp_arr[t]
+            orig_elem = arr[i]
+
+            if temp_elem < orig_elem:
+                arr[k] = temp_elem
+                yield temp_elem
+                t += 1
+            else:
+                arr[k] = orig_elem
+                yield orig_elem
+                i += 1
+            k += 1
+
+        while i < end_index:
+            arr[k] = arr[i]
+            k += 1
+            i += 1
+
+        while t < temp_size:
+            arr[k] = temp_arr[t]
+            k += 1
+            t += 1
+
+        rc_1 = RunChunk(start, end)
 
 
 def radix_sort(arr: MutableSequence[CT]) -> MutableSequence[CT]:
     ...
-
-
-if __name__ == "__main__":
-    import timeit
-
-    # print(timeit.timeit("tim_sort(list(range(0, 10_000_000)))", "from __main__ import tim_sort", number=1))
-    # print(timeit.timeit("sorted(list(range(10_000_000)))", number=1))

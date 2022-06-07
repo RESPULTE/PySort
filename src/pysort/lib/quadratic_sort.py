@@ -1,20 +1,5 @@
 from pysort.lib._type_hint import CT
-from typing import Any, Iterable, MutableSequence
-
-
-class OperationLoggingList(list):
-    def __init__(self) -> None:
-        super().__init__()
-        self.num_comparisons = 0
-        self.num_array_write = 0
-
-    def __getitem__(self, __i: int) -> Any:
-        self.num_comparisons += 1
-        return super().__getitem__(__i)
-
-    def __setitem__(self, __i: int, __val: Any) -> None:
-        self.num_array_write += 1
-        super().__setitem__(__i, __val)
+from typing import Iterable, MutableSequence
 
 
 def bubble_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Iterable[CT]:
@@ -67,7 +52,7 @@ def insertion_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) ->
         end = len(arr) - 1
 
     for i in range(start + 1, end + 1):
-        while i > 0 and arr[i - 1] > arr[i]:
+        while i > start and arr[i - 1] > arr[i]:
             arr[i - 1], arr[i] = arr[i], arr[i - 1]
             yield arr[i]
             i -= 1

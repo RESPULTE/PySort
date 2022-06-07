@@ -1,6 +1,5 @@
 from collections import deque
 from itertools import zip_longest
-import math
 from pysort.lib import *
 
 from typing import Callable, List, Optional, Tuple
@@ -22,8 +21,8 @@ class Settings:
     FPS = 60
     PADDING = 5
 
-    SMALL_DATASET = 10
-    MEDIUM_DATASET = 100
+    SMALL_DATASET = 50
+    MEDIUM_DATASET = 200
     LARGE_DATASET = 1000
 
     SCREEN_WIDTH = 1000
@@ -50,9 +49,10 @@ class Settings:
 
     SORTING_DISPLAYER_COLUMN_COLOR_INITIAL = (13, 53, 156)
     SORTING_DISPLAYER_COLUMN_COLOR_END = (130, 200, 200)
-    SORTING_ALGORITHM_COLUMN_COLOR_HIGHLIGHT = (250, 5, 0)
+    SORTING_ALGORITHM_COLUMN_COLOR_HIGHLIGHT = (255, 0, 0)
 
     TITLE_RECT = pygame.Rect(100, 20, 800, 65)
+    TITLE_TEXT = "1: Small Dataset [50] | 2: Medium Dataset [200] | 3: Large Dataset [1000]"
     TITLE_FONT_COLOR = (0, 0, 100)
     BACKGROUND_COLOR = (255, 255, 255)
 
@@ -167,15 +167,13 @@ class DropDownMenu(pygame.Surface):
 
 
 class Title(pygame.Surface):
-    def __init__(self, container: pygame.Surface) -> None:
+    def __init__(self, container: pygame.Surface, text: str) -> None:
         self.x, self.y, self.w, self.h = Settings.TITLE_RECT
         super().__init__((self.w, self.h))
         self.container = container
         self.fill(Settings.BACKGROUND_COLOR)
 
-    def set(self, text: str) -> None:
-        self.fill(Settings.BACKGROUND_COLOR)
-        font_surface = Settings.FONT.render("SELECTED: " + text, True, Settings.TITLE_FONT_COLOR)
+        font_surface = Settings.FONT.render(text, True, Settings.TITLE_FONT_COLOR)
         self.blit(font_surface, (self.x, (self.h - self.y) // 2))
         self.container.blit(self, (self.x, self.y))
 
@@ -204,24 +202,24 @@ class SortingDisplayer(pygame.Surface):
             self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_3)
             return
 
+        elif self.dataset_size == 0:
+            self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_2)
+            return
+
         self.sorter = self.sort_algo(self.dataset)
         self.sorting = True
 
     def sort(self) -> None:
         try:
-            if self.dataset_size == Settings.LARGE_DATASET:
-                data_to_highlight = next(itertools.islice(self.sorter, 10, 11))
-            else:
-                data_to_highlight = next(self.sorter)
+            data_to_highlight = next(self.sorter)
             self.render(data_to_highlight)
             self.render_info()
-            pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
 
         except StopIteration:
             self.render()
             self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_4)
             self.render_info()
-            pygame.display.update(Settings.SORTING_DISPLAYER_RECT)
+            self.dataset.reset()
             self.is_sorted = True
             self.sorting = False
 
@@ -279,7 +277,7 @@ class SortingDisplayer(pygame.Surface):
     def render_info(self) -> None:
         scaled_displayer = pygame.transform.scale(self, Settings.SORTING_DISPLAYER_RECT.size)
         font_surf = Settings.FONT.render(
-            f"array reads: {self.dataset.num_comparisons} | array writes: {self.dataset.num_array_write}",
+            f"array reads: {self.dataset.num_array_reads} | array writes: {self.dataset.num_array_write}",
             True,
             Settings.FONT_DEFAULT_COLOR,
         )
@@ -302,8 +300,6 @@ class SortingDisplayer(pygame.Surface):
         if self.dataset_size != 0:
             self.render()
             self.render_default(Settings.SORTING_ALGORITHM_GUIDE_TEXT_1)
-        self.dataset.num_array_write = 0
-        self.dataset.num_comparisons = 0
 
     def update(self) -> None:
         ...
@@ -319,14 +315,14 @@ def main():
     screen = pygame.display.set_mode((Settings.SCREEN_WIDTH, Settings.SCREEN_HEIGHT))
     screen.fill(Settings.BACKGROUND_COLOR)
 
-    sorting_algorithms = [bubble_sort, insertion_sort, selection_sort, merge_sort]
+    sorting_algorithms = [bubble_sort, insertion_sort, selection_sort, merge_sort, tim_sort]
     for algo in sorting_algorithms:
-        algo.__name__ = algo.__name__.replace("_", " ").upper()
+        algo.__name__ = algo.__name__.replace("_", " ").title()
     sorting_algorithm_names = [fn.__name__ for fn in sorting_algorithms]
 
     menu = DropDownMenu(text_list=sorting_algorithm_names, func_list=sorting_algorithms, container=screen)
     displayer = SortingDisplayer(container=screen)
-    title = Title(container=screen)
+    title = Title(container=screen, text=Settings.TITLE_TEXT)
 
     running = True
     screen.blit(title, (title.x, title.y))
@@ -345,21 +341,25 @@ def main():
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_RETURN:
-                    displayer.start()
+                    if displayer.sorting:
+                        exhaust(displayer.sorter)
+                    else:
+                        displayer.start()
 
-                elif event.key == pygame.K_1:
-                    displayer.render_dataset(Settings.SMALL_DATASET)
+                if not displayer.sorting:
+                    if event.key == pygame.K_1:
+                        displayer.render_dataset(Settings.SMALL_DATASET)
 
-                elif event.key == pygame.K_2:
-                    displayer.render_dataset(Settings.MEDIUM_DATASET)
+                    elif event.key == pygame.K_2:
+                        displayer.render_dataset(Settings.MEDIUM_DATASET)
 
-                elif event.key == pygame.K_3:
-                    displayer.render_dataset(Settings.LARGE_DATASET)
+                    elif event.key == pygame.K_3:
+                        displayer.render_dataset(Settings.LARGE_DATASET)
 
-        sort_algo = menu.update(*mouse_pos, clicked=clicked)
-        if sort_algo != None:
-            displayer.set(sort_algo)
-            title.set(sort_algo.__name__)
+        menu.update(*mouse_pos, clicked=clicked)
+
+        if not displayer.sorting and menu.clicked_button != None:
+            displayer.set(menu.clicked_button.func)
 
         if displayer.sorting:
             displayer.sort()
