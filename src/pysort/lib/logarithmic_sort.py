@@ -1,11 +1,12 @@
-from collections import deque, namedtuple
-from heapq import heapify, heappop, heappush
+from bisect import insort
 from pysort.lib._type_hint import CT
-from typing import Deque, List, MutableSequence, Tuple
+from pysort.lib.utils import exhaust
+from typing import List, MutableSequence, Tuple
+from itertools import accumulate
 from operator import lt, gt
 
 
-def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> MutableSequence[CT]:
+def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> None:
     """
     executes merge sort on the given array in place
 
@@ -86,7 +87,7 @@ def merge_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Mut
     yield from recursive_merge_sort(0, len(arr) - 1)
 
 
-def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[CT]:
+def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> None:
     remainder = 0
     arr_size = n = len(arr)
     while n >= merge_size:
@@ -99,8 +100,7 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[
     index = 0
     prev_index = 0
     end_index = arr_size - 1
-    RunChunk = namedtuple("RunChunk", ["start_index", "end_index"])
-    run_chunks: Deque[RunChunk] = deque([])
+    run_chunks: List[Tuple[int, int]] = []
 
     while index < end_index:
         comparator = lt if arr[index] < arr[index + 1] else gt
@@ -129,67 +129,163 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> MutableSequence[
                     yield arr[i]
                     i -= 1
 
-        run_chunks.append(RunChunk(prev_index, index))
+        run_chunks.append((prev_index, index))
         index += 1
         prev_index = index
 
     if len(run_chunks) == 1:
         return
 
-    rc_1 = run_chunks.popleft()
+    while (size := len(run_chunks)) > 1:
 
-    while run_chunks:
+        for m in range(size - 1, -1, -2):
+            rc_2, rc_1 = run_chunks.pop(m), run_chunks.pop(m - 1)
+            start, mid, end = rc_1[0], rc_1[1], rc_2[1]
 
-        rc_2 = run_chunks.popleft()
-        start, mid, end = rc_1.start_index, rc_1.end_index, rc_2.end_index
+            left_size = mid - start + 1
+            right_size = end - mid
+            mid += 1
+            if left_size > right_size:
+                temp_arr = arr[mid : end + 1]
+                arr[start + right_size : mid + right_size] = arr[start:mid]
 
-        left_size = mid - start + 1
-        right_size = end - mid
-        mid += 1
-        if left_size > right_size:
-            temp_arr = arr[mid : end + 1]
-            arr[start + right_size : mid + right_size] = arr[start:mid]
+                temp_size = right_size
 
-            temp_size = right_size
+                i = start + right_size
+                end_index = left_size + i
 
-            i = start + right_size
-            end_index = left_size + i
-
-        else:
-            temp_arr = arr[start:mid]
-            temp_size = left_size
-
-            i = mid
-            end_index = right_size + i
-
-        # copying the elements of splitted-array back into the original array in order
-        t, k = 0, start
-        while t < temp_size and i < end_index:
-            temp_elem = temp_arr[t]
-            orig_elem = arr[i]
-
-            if temp_elem < orig_elem:
-                arr[k] = temp_elem
-                yield temp_elem
-                t += 1
             else:
-                arr[k] = orig_elem
-                yield orig_elem
+                temp_arr = arr[start:mid]
+                temp_size = left_size
+
+                i = mid
+                end_index = right_size + i
+
+            # copying the elements of splitted-array back into the original array in order
+            t, k = 0, start
+            while t < temp_size and i < end_index:
+                temp_elem = temp_arr[t]
+                orig_elem = arr[i]
+
+                if temp_elem < orig_elem:
+                    arr[k] = temp_elem
+                    yield temp_elem
+                    t += 1
+                else:
+                    arr[k] = orig_elem
+                    yield orig_elem
+                    i += 1
+                k += 1
+
+            while i < end_index:
+                arr[k] = arr[i]
+                k += 1
                 i += 1
-            k += 1
 
-        while i < end_index:
-            arr[k] = arr[i]
-            k += 1
-            i += 1
+            while t < temp_size:
+                arr[k] = temp_arr[t]
+                k += 1
+                t += 1
 
-        while t < temp_size:
-            arr[k] = temp_arr[t]
-            k += 1
-            t += 1
-
-        rc_1 = RunChunk(start, end)
+            insort(run_chunks, (start, end))
 
 
-def radix_sort(arr: MutableSequence[CT]) -> MutableSequence[CT]:
-    ...
+def radix_sort(arr: MutableSequence[CT], base: int = 10) -> None:
+    max_elem = max(arr)
+    arr_size = len(arr)
+
+    # the larger the base, the larger the required space, but the lower the time complexity
+    # larger base allows for lesser iterations of the array through counting sort, but it increases
+    # the size of the temporary array used, base larger than the size of the array itself would result in a lot of
+    # unnecessary empty-space created in the count_index array
+    base = min(base, len(arr))
+    digit = 1
+
+    # keep looping until the digit of the max element has been exceeded
+    while max_elem // digit > 0:
+
+        # to keep track of the number of occurence of each number (0-9)
+        count_index = [0] * base
+
+        for i in range(0, arr_size):
+            # divide the number so that the position that we're looking for is the LSD
+            index = arr[i] // digit
+            # modulus the number to get the LSD
+            count_index[index % base] += 1
+            yield arr[i]
+
+        # getting the cummulative sum of the count_index array
+        # basically getting the index of the element with the given LSD in the actual array
+        # i.e: given an already sorted array
+        # given_array = [0, 1, 1, 2, 3, 5, 6, 6, 7, 8, 9]
+        # count_array = [1, 2, 1, 1, 0, 1, 2, 1, 1, 1]
+        # cummulative_count_array = [1, 3, 4, 5, 5, 6, 8, 9, 10, 11]
+        # given the element 7, its index would be 7, which corresponds to 9 in the cummulative_count_array,
+        # minus 1 and its 8, whih is the correct index of the element in the actual array
+        cummulative_count_index = list(accumulate(count_index))
+
+        i = arr_size - 1
+        output_arr = [0] * arr_size
+        while i >= 0:
+            elem = arr[i]
+            index = (elem // digit) % base
+            output_arr[cummulative_count_index[index] - 1] = elem
+            cummulative_count_index[index] -= 1
+            i -= 1
+
+        # re-writing the temporary array back into the actual array
+        for i in range(0, arr_size):
+            arr[i] = output_arr[i]
+            yield output_arr[i]
+
+        digit *= base
+
+
+def iterative_quick_sort(arr: MutableSequence[CT]) -> None:
+    def recursive_quick_sort(start: int, end: int) -> None:
+        while start < end:
+
+            pivot = arr[end]
+            i = start
+
+            for j in range(start, end):
+                if arr[j] <= pivot:
+                    arr[i], arr[j] = arr[j], arr[i]
+                    yield arr[j]
+                    i += 1
+
+            arr[i], arr[end] = arr[end], arr[i]
+            yield arr[end]
+
+            if i - start < end - i:
+                yield from recursive_quick_sort(start, i - 1)
+                start = i + 1
+                continue
+
+            yield from recursive_quick_sort(i + 1, end)
+            end = i - 1
+
+    yield from recursive_quick_sort(0, len(arr) - 1)
+
+
+def quick_sort(arr: MutableSequence[CT]) -> None:
+    def recursive_quick_sort(start: int, end: int) -> None:
+        if start >= end:
+            return
+
+        pivot = arr[end]
+        i = start
+
+        for j in range(start, end):
+            if arr[j] <= pivot:
+                arr[i], arr[j] = arr[j], arr[i]
+                yield arr[j]
+                i += 1
+
+        arr[i], arr[end] = arr[end], arr[i]
+        yield arr[end]
+
+        yield from recursive_quick_sort(start, i - 1)
+        yield from recursive_quick_sort(i + 1, end)
+
+    yield from recursive_quick_sort(0, len(arr) - 1)

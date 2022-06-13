@@ -19,7 +19,10 @@ def sorted_arr(arr) -> List[int]:
     return sorted(arr)
 
 
-@pytest.mark.parametrize("sort_algo", [bubble_sort, insertion_sort, selection_sort, merge_sort, tim_sort])
+@pytest.mark.parametrize(
+    "sort_algo",
+    [bubble_sort, insertion_sort, selection_sort, merge_sort, tim_sort, radix_sort, quick_sort, iterative_quick_sort],
+)
 def test_sort(sort_algo, arr, sorted_arr):
     exhaust(sort_algo(arr))
     assert arr == sorted_arr
