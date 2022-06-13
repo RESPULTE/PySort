@@ -1,0 +1,10 @@
+LICENSE
+README.md
+pyproject.toml
+setup.cfg
+setup.py
+src/vizsort.egg-info/PKG-INFO
+src/vizsort.egg-info/SOURCES.txt
+src/vizsort.egg-info/dependency_links.txt
+src/vizsort.egg-info/top_level.txt
+test/test_sort.py

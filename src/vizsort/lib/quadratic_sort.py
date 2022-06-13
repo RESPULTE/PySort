@@ -1,5 +1,7 @@
-from pysort.lib._type_hint import CT
+from vizsort.lib._type_hint import CT
 from typing import Iterable, MutableSequence
+
+__all__ = ["bubble_sort", "insertion_sort", "selection_sort"]
 
 
 def bubble_sort(arr: MutableSequence[CT], start: int = 0, end: int = None) -> Iterable[CT]:

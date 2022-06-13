@@ -1,11 +1,11 @@
 Metadata-Version: 2.1
-Name: pysort
+Name: vizsort
 Version: 0.0.1
 Summary: a binary tree package for general purpose
-Home-page: https://github.com/RESPULTE/Pysort
+Home-page: https://github.com/RESPULTE/VizSort
 Author: RESPULTE
 Author-email: yeapzing@gmail.com
-Project-URL: Bug Tracker, https://github.com/RESPULTE/Pysort/issues
+Project-URL: Bug Tracker, https://github.com/RESPULTE/VizSort/issues
 Classifier: Programming Language :: Python :: 3
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent

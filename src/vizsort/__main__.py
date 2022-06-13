@@ -1,30 +1,32 @@
-from functools import partial
-from pysort.lib import *
-
-from typing import Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Tuple, MutableSequence, Iterable
 import pygame
 import random
 
+import vizsort.lib
 
-pygame.init()
-pygame.font.init()
-# TODO:
-# seperate the surfaces from one another in the displayer class, a seperate surface for guide messages, display & etc.
-# clean up the setting's naming
-# get tim sort done
-# make it so that the sorting does not run in a seperate while loop from the main one
+if TYPE_CHECKING:
+    from vizsort.lib._type_hint import CT
 
 
 class Settings:
     FPS = 60
+    CAPTION = "VizSort"
+    BACKGROUND_COLOR = (30, 30, 30)
+    SCREEN_RECT_SIZE = (1000, 700)
 
     SMALL_DATASET = 50
     MEDIUM_DATASET = 200
     LARGE_DATASET = 1000
 
-    SCREEN_RECT_SIZE = (1000, 700)
+    COLOR_SCHEME_R = ((110, 13, 53), (200, 200, 130), (0, 255, 0))
+    COLOR_SCHEME_G = ((10, 80, 20), (10, 224, 154), (255, 0, 255))
+    COLOR_SCHEME_B = ((13, 53, 156), (130, 200, 200), (255, 0, 0))
+    CURRENT_COLOR_SCHEME = COLOR_SCHEME_B
 
-    FONT = pygame.font.SysFont("Arial", 30)
+    FONT_NAME = "Arial"
+    FONT_SIZE = 30
+    FONT: pygame.font.Font = None
+
     FONT_BACKGROUND_COLOR = (50, 37, 89)
     FONT_DEFAULT_COLOR = (255, 0, 255)
     FONT_HOVERED_COLOR = (255, 255, 255)
@@ -33,15 +35,15 @@ class Settings:
     BUTTON_HOVERED_COLOR = (195, 30, 0)
     BUTTON_CLICKED_COLOR = (0, 30, 195)
 
-    MENU_RECT = pygame.Rect(740, 390, 250, 300)
+    MENU_SORTING_ALGO_RECT = (740, 370, 250, 320)
+    MENU_DATASET_SIZE_RECT = (10, 640, 350, 50)
+
     MENU_BACKGROUND_COLOR = (0, 0, 0)
     MENU_BUTTON_RECT_PADDING = 5
 
-    SORTING_INFO_RECT_SIZE = (350, 35)
     SORTING_INFO_POSITION = "topleft"
-    SORTING_DISPLAYER_RECT = pygame.Rect(0, 0, 3000, 2500)
+    SORTING_DISPLAYER_RECT = (0, 0, 3000, 2500)
 
-    MESSAGE_RECT_SIZE = (300, 45)
     MESSAGE_RECT_PADDING = (25, 25)
     MESSAGE_POSITION = "center"
     MESSAGE_SORTING_DONE = "SORTING DONE"
@@ -49,20 +51,10 @@ class Settings:
     MESSAGE_SELECT_DATASET_SIZE = "SELECT DATASET SIZE"
     MESSAGE_SELECT_SORTING_ALGORITHM = "SELECT SORTING ALGORITHM"
 
-    COLOR_SCHEME_R = ((110, 13, 53), (200, 200, 130), (0, 255, 0))
-    COLOR_SCHEME_G = ((10, 80, 20), (10, 224, 154), (255, 0, 255))
-    COLOR_SCHEME_B = ((13, 53, 156), (130, 200, 200), (255, 0, 0))
-    CURRENT_COLOR_SCHEME = COLOR_SCHEME_B
-
-    GUIDE_RECT_SIZE = (500, 35)
-    GUIDE_TEXT = "1: Small [50] | 2: Medium [200] | 3: Large [1000]"
-    BACKGROUND_COLOR = (30, 30, 30)
-
 
 def render_bordered_text(
     surface: pygame.Surface,
     text: str,
-    size: tuple[int, int],
     pos: str,
     font_color: Tuple[int, int, int] = (0, 0, 0),
     bg_color: Tuple[int, int, int] = Settings.BACKGROUND_COLOR,
@@ -71,7 +63,6 @@ def render_bordered_text(
     y: int = 0,
 ) -> None:
     font_surf = Settings.FONT.render(text, True, font_color)
-    font_surf = pygame.transform.scale(font_surf, size)
 
     surf_rect = surface.get_rect()
     font_surf_rect = font_surf.get_rect(center=getattr(surf_rect, pos))
@@ -93,83 +84,77 @@ class Button(pygame.Surface):
         y: int,
         w: int,
         h: int,
-        container: "DropDownMenu",
+        container: "Menu",
         text: str = "",
-        func: Callable = None,
+        retval: Callable = None,
     ) -> None:
         super().__init__((w, h))
 
         self.text = text
-        self.func = func
+        self.retval = retval
         self.rect = self.get_rect()
 
         self.relative_pos = (x, y)
         self.container = container
+        self.absolute_rect: pygame.Rect = self.get_rect(topleft=(x + container.x, y + container.y))
+
         self._current_color = Settings.FONT_BACKGROUND_COLOR
         self._current_font_color = Settings.FONT_DEFAULT_COLOR
 
         self.render()
-        self.container.blit(self, (x, y))
-        self.absolute_rect: pygame.Rect = self.get_rect(topleft=(x + container.x, y + container.y))
 
     def render(self) -> None:
         self.fill(self._current_color)
         font_surface = Settings.FONT.render(self.text, True, self._current_font_color)
         self.blit(font_surface, font_surface.get_rect(center=self.rect.center))
+        self.container.blit(self, self.relative_pos)
 
     def set_hovered(self) -> None:
         self._current_color = Settings.BUTTON_HOVERED_COLOR
         self._current_font_color = Settings.FONT_HOVERED_COLOR
 
         self.render()
-        self.container.blit(self, self.relative_pos)
 
     def set_clicked(self) -> None:
         self._current_color = Settings.BUTTON_CLICKED_COLOR
         self._current_font_color = Settings.FONT_CLICKED_COLOR
 
         self.render()
-        self.container.blit(self, self.relative_pos)
 
     def set_default(self) -> None:
         self._current_color = Settings.FONT_BACKGROUND_COLOR
         self._current_font_color = Settings.FONT_DEFAULT_COLOR
 
         self.render()
-        self.container.blit(self, self.relative_pos)
 
 
-class DropDownMenu(pygame.Surface):
-    def __init__(self, text_list: List[str], func_list: List[Callable], container: pygame.Surface, **kwargs) -> None:
+class Menu(pygame.Surface):
+    def __init__(
+        self,
+        rect: Tuple[int, int, int, int],
+        text_list: List[str],
+        retval_list: List[Callable],
+        container: pygame.Surface,
+        horizontal: bool = True,
+    ) -> None:
         self.container = container
-        self.x, self.y, self.w, self.h = Settings.MENU_RECT
+        self.x, self.y, self.w, self.h = rect
         super().__init__((self.w, self.h))
         self.fill(Settings.MENU_BACKGROUND_COLOR)
 
         self.buttons: List[Button] = []
-
-        total_btn = len(func_list)
-        btn_h = (self.h - (Settings.MENU_BUTTON_RECT_PADDING * (total_btn + 0.5))) // total_btn
-        btn_w = self.w - Settings.MENU_BUTTON_RECT_PADDING * 2
-        btn_x = btn_y = Settings.MENU_BUTTON_RECT_PADDING
-
-        for text, fn in zip(text_list, func_list):
-            btn = Button(btn_x, btn_y, btn_w, btn_h, text=text, container=self, func=fn, **kwargs)
-            btn_y += btn_h + Settings.MENU_BUTTON_RECT_PADDING
-            self.buttons.append(btn)
-
         self.clicked_button: Button = None
         self.hovered_button: Button = None
 
-        self.container.blit(self, (self.x, self.y))
+        if horizontal:
+            self.set_horizontal(text_list, retval_list)
+            return
+
+        self.set_vertical(text_list, retval_list)
 
     def update(self, x: int, y: int, clicked: bool = False) -> None:
-        clicked_btn_func = None
-
+        clicked_btn_retval = None
         for btn in self.buttons:
-
-            if btn is self.clicked_button:
-                continue
 
             if not btn.absolute_rect.collidepoint(x, y):
                 if btn is self.hovered_button:
@@ -177,16 +162,16 @@ class DropDownMenu(pygame.Surface):
                     self.hovered_button = None
 
             elif clicked:
-                if self.clicked_button != None:
-                    self.clicked_button.set_default()
+                if btn is not self.clicked_button:
+                    if self.clicked_button != None:
+                        self.clicked_button.set_default()
+                    btn.set_clicked()
+                    self.clicked_button = btn
 
-                btn.set_clicked()
-                self.clicked_button = btn
                 self.hovered_button = None
+                clicked_btn_retval = btn.retval
 
-                clicked_btn_func = btn.func
-
-            elif btn is not self.hovered_button:
+            elif btn not in (self.hovered_button, self.clicked_button):
                 if self.hovered_button != None:
                     self.hovered_button.set_default()
 
@@ -195,7 +180,36 @@ class DropDownMenu(pygame.Surface):
 
             self.container.blit(self, (self.x, self.y))
 
-        return clicked_btn_func
+        return clicked_btn_retval
+
+    def render(self) -> None:
+        self.container.blit(self, (self.x, self.y))
+
+    def set_horizontal(self, text_list, retval_list) -> None:
+        total_btn = len(retval_list)
+        btn_w = (self.w - (Settings.MENU_BUTTON_RECT_PADDING * (total_btn + 0.5))) // total_btn
+        btn_h = self.h - Settings.MENU_BUTTON_RECT_PADDING * 2
+        btn_x = btn_y = Settings.MENU_BUTTON_RECT_PADDING
+
+        for text, val in zip(text_list, retval_list):
+            btn = Button(btn_x, btn_y, btn_w, btn_h, text=text, container=self, retval=val)
+            btn_x += btn_w + Settings.MENU_BUTTON_RECT_PADDING
+            self.buttons.append(btn)
+
+        self.container.blit(self, (self.x, self.y))
+
+    def set_vertical(self, text_list, retval_list) -> None:
+        total_btn = len(retval_list)
+        btn_h = (self.h - (Settings.MENU_BUTTON_RECT_PADDING * (total_btn + 0.5))) // total_btn
+        btn_w = self.w - Settings.MENU_BUTTON_RECT_PADDING * 2
+        btn_x = btn_y = Settings.MENU_BUTTON_RECT_PADDING
+
+        for text, fn in zip(text_list, retval_list):
+            btn = Button(btn_x, btn_y, btn_w, btn_h, text=text, container=self, retval=fn)
+            btn_y += btn_h + Settings.MENU_BUTTON_RECT_PADDING
+            self.buttons.append(btn)
+
+        self.container.blit(self, (self.x, self.y))
 
 
 class SortingDisplayer(pygame.Surface):
@@ -204,38 +218,18 @@ class SortingDisplayer(pygame.Surface):
         super().__init__((self.w, self.h))
 
         self.dataset_size = 0
-        self.dataset = OperationLoggingList()
+        self.dataset = vizsort.lib.OperationLoggingList()
         self.container = container
 
         self.column_width = 0
         self.column_to_hightlight = None
 
         self.sorting = False
-        self.sort_algo: Callable[[MutableSequence[CT]], None] = None
+        self.sort_algo: Callable[[MutableSequence["CT"]], None] = None
         self.sorter: Iterable = None
 
         self.message = None
         self.info = None
-
-        self.message_renderer = partial(
-            render_bordered_text,
-            surface=self.container,
-            size=Settings.MESSAGE_RECT_SIZE,
-            pos=Settings.MESSAGE_POSITION,
-            font_color=Settings.FONT_DEFAULT_COLOR,
-            bg_color=Settings.FONT_BACKGROUND_COLOR,
-            border_color=Settings.FONT_DEFAULT_COLOR,
-        )
-
-        self.info_renderer = partial(
-            render_bordered_text,
-            surface=self.container,
-            size=Settings.SORTING_INFO_RECT_SIZE,
-            pos=Settings.SORTING_INFO_POSITION,
-            font_color=Settings.FONT_DEFAULT_COLOR,
-            bg_color=Settings.FONT_BACKGROUND_COLOR,
-            border_color=Settings.FONT_DEFAULT_COLOR,
-        )
 
         self.message = Settings.MESSAGE_SELECT_DATASET_SIZE
 
@@ -248,6 +242,7 @@ class SortingDisplayer(pygame.Surface):
             return
 
         self.sorter = self.sort_algo(self.dataset)
+        self.message = None
         self.sorting = True
 
     def sort(self) -> None:
@@ -309,9 +304,23 @@ class SortingDisplayer(pygame.Surface):
         pygame.transform.scale(self, Settings.SCREEN_RECT_SIZE, self.container)
 
         if self.message:
-            self.message_renderer(text=self.message)
+            render_bordered_text(
+                surface=self.container,
+                text=self.message,
+                pos=Settings.MESSAGE_POSITION,
+                font_color=Settings.FONT_DEFAULT_COLOR,
+                bg_color=Settings.FONT_BACKGROUND_COLOR,
+                border_color=Settings.FONT_DEFAULT_COLOR,
+            )
         if self.info:
-            self.info_renderer(text=self.info)
+            render_bordered_text(
+                surface=self.container,
+                text=self.info,
+                pos=Settings.SORTING_INFO_POSITION,
+                font_color=Settings.FONT_DEFAULT_COLOR,
+                bg_color=Settings.FONT_BACKGROUND_COLOR,
+                border_color=Settings.FONT_DEFAULT_COLOR,
+            )
 
     def set_sort_algo(self, sort_algo: Callable) -> None:
         self.sort_algo = sort_algo
@@ -319,51 +328,58 @@ class SortingDisplayer(pygame.Surface):
             self.message = Settings.MESSAGE_PROMPT_TO_START
 
     def handle_event(self, event: pygame.event.Event) -> None:
-        if event.key == pygame.K_RETURN:
-            if self.sorting:
-                exhaust(self.sorter)
-            else:
-                self.start()
-
-        if not self.sorting:
-            if event.key == pygame.K_1:
-                self.generate_data(Settings.SMALL_DATASET)
-
-            elif event.key == pygame.K_2:
-                self.generate_data(Settings.MEDIUM_DATASET)
-
-            elif event.key == pygame.K_3:
-                self.generate_data(Settings.LARGE_DATASET)
-
-    def update(self, new_sorting_func: Callable[[MutableSequence[CT]], None]) -> None:
-        if not self.sorting:
-            if new_sorting_func != None and new_sorting_func != self.sort_algo:
-                self.set_sort_algo(new_sorting_func)
+        if event.key != pygame.K_RETURN:
             return
-        self.sort()
+
+        if self.sorting:
+            vizsort.lib.exhaust(self.sorter)
+            return
+
+        self.start()
+
+    def update(self, new_sorting_func: Callable[[MutableSequence["CT"]], None], new_dataset_size: int) -> None:
+        if self.sorting:
+            self.sort()
+
+        if new_sorting_func != None and new_sorting_func != self.sort_algo:
+            self.set_sort_algo(new_sorting_func)
+        if new_dataset_size != None:
+            self.generate_data(new_dataset_size)
 
 
 def main():
     pygame.init()
     pygame.font.init()
+    Settings.FONT = pygame.font.SysFont(Settings.FONT_NAME, Settings.FONT_SIZE)
+
     screen = pygame.display.set_mode(Settings.SCREEN_RECT_SIZE)
+    pygame.display.set_caption(Settings.CAPTION)
     screen.fill(Settings.BACKGROUND_COLOR)
 
-    sorting_algorithms = [
-        bubble_sort,
-        insertion_sort,
-        selection_sort,
-        merge_sort,
-        tim_sort,
-        radix_sort,
-        quick_sort,
-        iterative_quick_sort,
+    sorting_algorithm_info = [
+        (k.replace("_", " ").title(), v) for k, v in vizsort.lib.__dict__.items() if k.endswith("_sort") and callable(v)
     ]
-    for algo in sorting_algorithms:
-        algo.__name__ = algo.__name__.replace("_", " ").title()
-    sorting_algorithm_names = [fn.__name__ for fn in sorting_algorithms]
 
-    menu = DropDownMenu(text_list=sorting_algorithm_names, func_list=sorting_algorithms, container=screen)
+    sorting_algorithm_names, sorting_algorithms = map(list, zip(*sorting_algorithm_info))
+    algo_menu = Menu(
+        rect=Settings.MENU_SORTING_ALGO_RECT,
+        text_list=sorting_algorithm_names,
+        retval_list=sorting_algorithms,
+        container=screen,
+        horizontal=False,
+    )
+
+    dataset_info = [
+        (k.removesuffix("_DATASET").title(), v) for k, v in Settings.__dict__.items() if k.endswith("_DATASET")
+    ]
+    dataset_size_names, dataset_size_values = map(list, zip(*dataset_info))
+    size_menu = Menu(
+        rect=Settings.MENU_DATASET_SIZE_RECT,
+        text_list=dataset_size_names,
+        retval_list=dataset_size_values,
+        container=screen,
+    )
+
     displayer = SortingDisplayer(container=screen)
 
     running = True
@@ -390,10 +406,15 @@ def main():
                 elif event.key == pygame.K_b:
                     Settings.CURRENT_COLOR_SCHEME = Settings.COLOR_SCHEME_B
 
+        new_sorting_algo = algo_menu.update(*mouse_pos, clicked=clicked)
+        new_dataset_size = size_menu.update(*mouse_pos, clicked=clicked)
+
+        displayer.update(new_sorting_algo, new_dataset_size)
         displayer.render()
 
-        new_sorting_algo = menu.update(*mouse_pos, clicked=clicked)
-        displayer.update(new_sorting_algo)
+        if not displayer.sorting:
+            size_menu.render()
+            algo_menu.render()
 
         pygame.display.flip()
 

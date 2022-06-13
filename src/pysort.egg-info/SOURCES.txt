@@ -1,9 +1,0 @@
-LICENSE
-README.md
-pyproject.toml
-setup.cfg
-setup.py
-src/pysort.egg-info/PKG-INFO
-src/pysort.egg-info/SOURCES.txt
-src/pysort.egg-info/dependency_links.txt
-src/pysort.egg-info/top_level.txt

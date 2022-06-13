@@ -1,8 +1,8 @@
 from typing import List
 import random
 import pytest
-from pysort.lib import *
-from pysort.lib.utils import exhaust
+from vizsort.lib import *
+from vizsort.lib.utils import exhaust
 
 DATASET_SIZE = 1000
 
