@@ -208,10 +208,14 @@ class SortingDisplayer(pygame.Surface):
         self.container = container
 
         self.column_width = 0
+        self.column_to_hightlight = None
 
         self.sorting = False
         self.sort_algo: Callable[[MutableSequence[CT]], None] = None
         self.sorter: Iterable = None
+
+        self.message = None
+        self.info = None
 
         self.message_renderer = partial(
             render_bordered_text,
@@ -233,14 +237,14 @@ class SortingDisplayer(pygame.Surface):
             border_color=Settings.FONT_DEFAULT_COLOR,
         )
 
-        self.message_renderer(text=Settings.MESSAGE_SELECT_DATASET_SIZE)
+        self.message = Settings.MESSAGE_SELECT_DATASET_SIZE
 
     def start(self) -> None:
         if self.dataset_size == 0:
             return
 
         elif self.sort_algo is None:
-            self.message_renderer(text=Settings.MESSAGE_SELECT_SORTING_ALGORITHM)
+            self.message = Settings.MESSAGE_SELECT_SORTING_ALGORITHM
             return
 
         self.sorter = self.sort_algo(self.dataset)
@@ -248,22 +252,22 @@ class SortingDisplayer(pygame.Surface):
 
     def sort(self) -> None:
         try:
-            data_to_highlight = next(self.sorter)
-            self.render(data_to_highlight)
-            self.info_renderer(
-                text=f"array reads: {self.dataset.num_array_reads} | array writes: {self.dataset.num_array_write}"
-            )
+            self.column_to_hightlight = next(self.sorter)
+            self.info = f"array reads: {self.dataset.num_array_reads} | array writes: {self.dataset.num_array_write}"
+
         except StopIteration:
-            self.render()
-            self.message_renderer(text=Settings.MESSAGE_SORTING_DONE)
-            self.info_renderer(
-                text=f"array reads: {self.dataset.num_array_reads} | array writes: {self.dataset.num_array_write}"
-            )
+            self.message = Settings.MESSAGE_SORTING_DONE
+            self.info = f"array reads: {self.dataset.num_array_reads} | array writes: {self.dataset.num_array_write}"
 
             self.dataset.reset()
+            self.column_to_hightlight = None
             self.sorting = False
 
     def generate_data(self, n: int) -> None:
+        self.message = (
+            Settings.MESSAGE_SELECT_SORTING_ALGORITHM if self.sort_algo is None else Settings.MESSAGE_PROMPT_TO_START
+        )
+
         if n == self.dataset_size:
             random.shuffle(self.dataset)
             return
@@ -275,7 +279,7 @@ class SortingDisplayer(pygame.Surface):
 
         self.column_width = self.w / self.dataset_size
 
-    def render(self, data_to_highlight: Optional[int] = None) -> None:
+    def render(self) -> None:
         self.fill(Settings.BACKGROUND_COLOR)
 
         ir, ig, ib = Settings.CURRENT_COLOR_SCHEME[0]
@@ -293,21 +297,26 @@ class SortingDisplayer(pygame.Surface):
             pygame.draw.rect(self, color, (x, y, self.column_width, h))
             x += self.column_width
 
-        if data_to_highlight != None:
-            ratio = data_to_highlight / self.dataset_size
+        if self.column_to_hightlight != None:
+            ratio = self.column_to_hightlight / self.dataset_size
 
             h = ratio * self.h
             y = self.h - h
 
-            x = self.dataset.index(data_to_highlight) * self.column_width
+            x = self.dataset.index(self.column_to_hightlight) * self.column_width
             pygame.draw.rect(self, Settings.CURRENT_COLOR_SCHEME[2], (x, y, self.column_width, h))
 
         pygame.transform.scale(self, Settings.SCREEN_RECT_SIZE, self.container)
 
+        if self.message:
+            self.message_renderer(text=self.message)
+        if self.info:
+            self.info_renderer(text=self.info)
+
     def set_sort_algo(self, sort_algo: Callable) -> None:
         self.sort_algo = sort_algo
         if self.dataset_size != 0:
-            self.message_renderer(text=Settings.MESSAGE_PROMPT_TO_START)
+            self.message = Settings.MESSAGE_PROMPT_TO_START
 
     def handle_event(self, event: pygame.event.Event) -> None:
         if event.key == pygame.K_RETURN:
@@ -325,8 +334,6 @@ class SortingDisplayer(pygame.Surface):
 
             elif event.key == pygame.K_3:
                 self.generate_data(Settings.LARGE_DATASET)
-
-        self.render()
 
     def update(self, new_sorting_func: Callable[[MutableSequence[CT]], None]) -> None:
         if not self.sorting:
@@ -382,6 +389,8 @@ def main():
                     Settings.CURRENT_COLOR_SCHEME = Settings.COLOR_SCHEME_G
                 elif event.key == pygame.K_b:
                     Settings.CURRENT_COLOR_SCHEME = Settings.COLOR_SCHEME_B
+
+        displayer.render()
 
         new_sorting_algo = menu.update(*mouse_pos, clicked=clicked)
         displayer.update(new_sorting_algo)
