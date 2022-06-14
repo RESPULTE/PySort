@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Iterable, Any
+from typing import Iterable, Any, Tuple
 
 
 def exhaust(__i: Iterable) -> None:
@@ -16,9 +16,11 @@ class OperationLoggingList(list):
         self.num_array_reads = 0
         self.num_array_write = 0
 
-    def __getitem__(self, __i: int) -> Any:
-        self.num_array_reads += 1
-        return super().__getitem__(__i)
+    def __getitem__(self, __i: int | Tuple[int, bool]) -> Any:
+        if not isinstance(__i, tuple):
+            self.num_array_reads += 1
+            return super().__getitem__(__i)
+        return super().__getitem__(__i[0])
 
     def __setitem__(self, __i: int, __val: Any) -> None:
         self.num_array_write += 1

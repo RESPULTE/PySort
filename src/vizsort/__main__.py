@@ -113,19 +113,13 @@ class Button(pygame.Surface):
         self._current_color = Settings.BUTTON_HOVERED_COLOR
         self._current_font_color = Settings.FONT_HOVERED_COLOR
 
-        self.render()
-
     def set_clicked(self) -> None:
         self._current_color = Settings.BUTTON_CLICKED_COLOR
         self._current_font_color = Settings.FONT_CLICKED_COLOR
 
-        self.render()
-
     def set_default(self) -> None:
         self._current_color = Settings.FONT_BACKGROUND_COLOR
         self._current_font_color = Settings.FONT_DEFAULT_COLOR
-
-        self.render()
 
 
 class Menu(pygame.Surface):
@@ -178,11 +172,11 @@ class Menu(pygame.Surface):
                 btn.set_hovered()
                 self.hovered_button = btn
 
-            self.container.blit(self, (self.x, self.y))
-
         return clicked_btn_retval
 
     def render(self) -> None:
+        for btn in self.buttons:
+            btn.render()
         self.container.blit(self, (self.x, self.y))
 
     def set_horizontal(self, text_list, retval_list) -> None:
@@ -340,6 +334,7 @@ class SortingDisplayer(pygame.Surface):
     def update(self, new_sorting_func: Callable[[MutableSequence["CT"]], None], new_dataset_size: int) -> None:
         if self.sorting:
             self.sort()
+            return
 
         if new_sorting_func != None and new_sorting_func != self.sort_algo:
             self.set_sort_algo(new_sorting_func)

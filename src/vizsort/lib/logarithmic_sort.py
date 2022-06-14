@@ -110,7 +110,7 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> None:
         index += 1
         run_size = 2
         while index < end_index and comparator(arr[index], arr[index + 1]):
-            yield arr[index]
+            yield arr[index, True]
             index += 1
             run_size += 1
 
@@ -119,7 +119,7 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> None:
 
             for i in range(prev_index, end_section_index):
                 arr[i], arr[end_section_index] = arr[end_section_index], arr[i]
-                yield arr[end_section_index]
+                yield arr[end_section_index, True]
                 end_section_index -= 1
 
         if run_size < min_runsize or 0 < end_index - index < min_runsize:
@@ -128,7 +128,7 @@ def tim_sort(arr: MutableSequence[CT], merge_size: int = 32) -> None:
             for i in range(prev_index + 1, index + 1):
                 while i > prev_index and arr[i - 1] > arr[i]:
                     arr[i - 1], arr[i] = arr[i], arr[i - 1]
-                    yield arr[i]
+                    yield arr[i, True]
                     i -= 1
 
         run_chunks.append((prev_index, index))
@@ -214,7 +214,7 @@ def radix_sort(arr: MutableSequence[CT], base: int = 10) -> None:
             index = arr[i] // digit
             # modulus the number to get the LSD
             count_index[index % base] += 1
-            yield arr[i]
+            yield arr[i, True]
 
         # getting the cummulative sum of the count_index array
         # basically getting the index of the element with the given LSD in the actual array
@@ -238,7 +238,7 @@ def radix_sort(arr: MutableSequence[CT], base: int = 10) -> None:
         # re-writing the temporary array back into the actual array
         for i in range(0, arr_size):
             arr[i] = output_arr[i]
-            yield output_arr[i]
+            yield output_arr[i, True]
 
         digit *= base
 
@@ -253,11 +253,11 @@ def iterative_quick_sort(arr: MutableSequence[CT]) -> None:
             for j in range(start, end):
                 if arr[j] <= pivot:
                     arr[i], arr[j] = arr[j], arr[i]
-                    yield arr[j]
+                    yield arr[j, True]
                     i += 1
 
             arr[i], arr[end] = arr[end], arr[i]
-            yield arr[end]
+            yield arr[end, True]
 
             if i - start < end - i:
                 yield from recursive_quick_sort(start, i - 1)
@@ -281,7 +281,7 @@ def quick_sort(arr: MutableSequence[CT]) -> None:
         for j in range(start, end):
             if arr[j] <= pivot:
                 arr[i], arr[j] = arr[j], arr[i]
-                yield arr[j]
+                yield arr[j, True]
                 i += 1
 
         arr[i], arr[end] = arr[end], arr[i]
