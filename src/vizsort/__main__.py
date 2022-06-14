@@ -146,11 +146,11 @@ class Menu(pygame.Surface):
 
         self.set_vertical(text_list, retval_list)
 
-    def update(self, x: int, y: int, clicked: bool = False) -> None:
+    def update(self, pos: Tuple[int, int], clicked: bool = False) -> None:
         clicked_btn_retval = None
         for btn in self.buttons:
 
-            if not btn.absolute_rect.collidepoint(x, y):
+            if not btn.absolute_rect.collidepoint(pos):
                 if btn is self.hovered_button:
                     btn.set_default()
                     self.hovered_button = None
@@ -401,12 +401,13 @@ def main():
                 elif event.key == pygame.K_b:
                     Settings.CURRENT_COLOR_SCHEME = Settings.COLOR_SCHEME_B
 
-        new_sorting_algo = algo_menu.update(*mouse_pos, clicked=clicked)
-        new_dataset_size = size_menu.update(*mouse_pos, clicked=clicked)
-
+        new_sorting_algo = new_dataset_size = None
+        if not displayer.sorting:
+            new_sorting_algo = algo_menu.update(mouse_pos, clicked=clicked)
+            new_dataset_size = size_menu.update(mouse_pos, clicked=clicked)
         displayer.update(new_sorting_algo, new_dataset_size)
-        displayer.render()
 
+        displayer.render()
         if not displayer.sorting:
             size_menu.render()
             algo_menu.render()
